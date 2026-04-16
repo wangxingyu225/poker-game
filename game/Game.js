@@ -97,6 +97,7 @@ class Game {
       this.currentPlayerIndex = (bbIndex + 1) % n;
     }
     this.lastRaiseIndex = bbIndex;
+    this.actedPlayers = new Set(); // 记录本轮已主动行动的玩家
     this.phase = 'preflop';
 
     this._startThinkTimer();
@@ -156,17 +157,20 @@ class Game {
     switch (action) {
       case 'fold':
         player.folded = true;
+        this.actedPlayers.add(this.currentPlayerIndex);
         this.actionLog.push(`${player.name} ${isTimeout ? '超时弃牌' : '弃牌'}`);
         break;
 
       case 'check':
         if (callAmount > 0) return { error: '需要跟注或加注' };
+        this.actedPlayers.add(this.currentPlayerIndex);
         this.actionLog.push(`${player.name} 过牌`);
         break;
 
       case 'call':
         if (callAmount <= 0) return { error: '无需跟注' };
         this._collectBet(this.currentPlayerIndex, callAmount);
+        this.actedPlayers.add(this.currentPlayerIndex);
         this.actionLog.push(`${player.name} 跟注 ${callAmount}`);
         break;
 
@@ -179,12 +183,14 @@ class Game {
           if (player.totalBet > this.currentBet) {
             this.currentBet = player.totalBet;
             this.lastRaiseIndex = this.currentPlayerIndex;
+            this.actedPlayers = new Set([this.currentPlayerIndex]); // 重置，其他人需重新行动
           }
           this.actionLog.push(`${player.name} All-in ${actual}`);
         } else {
           this._collectBet(this.currentPlayerIndex, needed);
           this.currentBet = raiseTotal;
           this.lastRaiseIndex = this.currentPlayerIndex;
+          this.actedPlayers = new Set([this.currentPlayerIndex]); // 重置
           this.actionLog.push(`${player.name} 加注至 ${raiseTotal}`);
         }
         break;
@@ -195,6 +201,9 @@ class Game {
         if (player.totalBet > this.currentBet) {
           this.currentBet = player.totalBet;
           this.lastRaiseIndex = this.currentPlayerIndex;
+          this.actedPlayers = new Set([this.currentPlayerIndex]);
+        } else {
+          this.actedPlayers.add(this.currentPlayerIndex);
         }
         this.actionLog.push(`${player.name} All-in ${actual}`);
         break;
@@ -237,22 +246,22 @@ class Game {
     const active = this.getActiveNonAllIn();
     if (active.length === 0) return true;
 
-    // 所有未弃牌且未all-in的玩家下注金额相同
+    // 所有未弃牌且未all-in的玩家下注金额必须相同
     const allCalled = active.every(p => p.bet === this.currentBet);
     if (!allCalled) return false;
 
-    // 回到了最后加注者的下一个有效玩家
-    const n = this.players.length;
-    let expected = (this.lastRaiseIndex + 1) % n;
-    while (this.players[expected].folded || this.players[expected].allIn) {
-      expected = (expected + 1) % n;
-    }
-    return nextIndex === expected;
+    // 所有未弃牌且未all-in的玩家都已主动行动过
+    const allActed = active.every((_, i) => {
+      const idx = this.players.indexOf(active[i]);
+      return this.actedPlayers.has(idx);
+    });
+    return allActed;
   }
 
   _advancePhase() {
     this.players.forEach(p => { p.bet = 0; });
     this.currentBet = 0;
+    this.actedPlayers = new Set(); // 新一轮重置
 
     const active = this.getActivePlayers();
     if (active.length === 1) {

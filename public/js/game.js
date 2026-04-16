@@ -161,13 +161,9 @@ function renderGame(state) {
     myCardsEl.innerHTML = '';
   }
 
-  // 带入筹码按钮：筹码为0且游戏在进行中时显示
+  // 带入筹码按钮：游戏进行中随时可用
   const rebuyBtn = document.getElementById('rebuyBtn');
-  if (me && me.chips === 0 && state.phase !== 'waiting') {
-    rebuyBtn.style.display = 'block';
-  } else {
-    rebuyBtn.style.display = 'none';
-  }
+  rebuyBtn.style.display = me && state.phase !== 'waiting' ? 'block' : 'none';
 
   const actionPanel = document.getElementById('actionPanel');
   if (state.currentPlayerId === sid && state.phase !== 'showdown' && state.phase !== 'waiting') {
