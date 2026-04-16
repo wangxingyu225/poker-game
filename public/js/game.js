@@ -84,6 +84,7 @@ socket.on('room_update', ({ players, phase }) => {
 
 socket.on('game_state', (state) => {
   currentState = state;
+  mySocketId = socket.id;
   showGameScreen();
   renderGame(state);
 });
@@ -112,7 +113,8 @@ function renderGame(state) {
 
   renderSeats(state);
 
-  const me = state.players.find(p => p.id === socket.id);
+  const sid = mySocketId || socket.id;
+  const me = state.players.find(p => p.id === sid);
   const myCardsEl = document.getElementById('myCards');
   if (me && me.holeCards) {
     myCardsEl.innerHTML = me.holeCards.map(c => cardHTML(c)).join('');
@@ -121,7 +123,7 @@ function renderGame(state) {
   }
 
   const actionPanel = document.getElementById('actionPanel');
-  if (state.currentPlayerId === socket.id && state.phase !== 'showdown' && state.phase !== 'waiting') {
+  if (state.currentPlayerId === sid && state.phase !== 'showdown' && state.phase !== 'waiting') {
     actionPanel.style.display = 'flex';
     updateActionButtons(state, me);
   } else {

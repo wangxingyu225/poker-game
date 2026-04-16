@@ -12,6 +12,12 @@ const io = new Server(server, {
 
 app.use(express.static('public'));
 
+// 设置 CSP 允许 socket.io 所需的 eval
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; connect-src 'self' ws: wss:;");
+  next();
+});
+
 // roomId -> Game
 const rooms = {};
 // socketId -> { roomId, playerName }
@@ -50,6 +56,7 @@ io.on('connection', (socket) => {
     if (game.players[0].id !== socket.id) return socket.emit('error', { message: '只有房主可以开始游戏' });
     if (!game.canStart()) return socket.emit('error', { message: '至少需要2名玩家' });
     game.startRound();
+    broadcastRoomUpdate(info.roomId);
     broadcastGameState(info.roomId);
   });
 
