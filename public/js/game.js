@@ -4,14 +4,14 @@ const roomId = sessionStorage.getItem('roomId');
 let isHost = sessionStorage.getItem('isHost') === 'true';
 let mySocketId = null;
 let currentState = null;
+let statsMap = {}; // playerId -> { name, net }
 
-// 如果没有 pendingAction 也没有有效 roomId，跳回首页
 const pending = sessionStorage.getItem('pendingAction');
 if (!pending && (!roomId || roomId === '__pending__')) {
   window.location.href = '/';
 }
 
-// ===== 大厅界面初始化 =====
+// ===== 大厅界面 =====
 document.getElementById('copyRoomBtn').addEventListener('click', () => {
   const id = sessionStorage.getItem('roomId');
   navigator.clipboard.writeText(id || '');
@@ -23,9 +23,21 @@ document.getElementById('startBtn').addEventListener('click', () => {
   socket.emit('start_game');
 });
 
-document.getElementById('nextRoundBtn').addEventListener('click', () => {
-  socket.emit('next_round');
-  document.getElementById('resultOverlay').style.display = 'none';
+// ===== 带入筹码 =====
+document.getElementById('rebuyBtn').addEventListener('click', () => {
+  const me = currentState && currentState.players.find(p => p.id === socket.id);
+  document.getElementById('myChipsDisplay').textContent = me ? me.chips : 0;
+  document.getElementById('rebuyOverlay').style.display = 'flex';
+});
+
+document.getElementById('rebuyConfirmBtn').addEventListener('click', () => {
+  const amount = parseInt(document.getElementById('rebuyAmount').value) || 0;
+  if (amount > 0) socket.emit('rebuy', { amount });
+  document.getElementById('rebuyOverlay').style.display = 'none';
+});
+
+document.getElementById('rebuyCancelBtn').addEventListener('click', () => {
+  document.getElementById('rebuyOverlay').style.display = 'none';
 });
 
 // ===== Socket 连接 =====
@@ -61,24 +73,19 @@ socket.on('room_joined', ({ roomId: id }) => {
   sessionStorage.setItem('isHost', 'false');
   isHost = false;
   document.getElementById('roomIdDisplay').textContent = id;
-  document.getElementById('startBtn').style.display = 'none';
-  document.getElementById('waitMsg').style.display = 'block';
 });
 
 socket.on('room_update', ({ players, phase }) => {
   const list = document.getElementById('playerList');
-  const firstPlayerId = players[0]?.id;
-  if (firstPlayerId === socket.id) {
+  if (players[0]?.id === socket.id) {
     isHost = true;
     sessionStorage.setItem('isHost', 'true');
     document.getElementById('startBtn').style.display = 'block';
     document.getElementById('waitMsg').style.display = 'none';
   }
-
   list.innerHTML = players.map((p, i) =>
     `<div class="player-item"><span>${i === 0 ? '👑 ' : ''}${p.name}</span><span>💰 ${p.chips}</span></div>`
   ).join('');
-
   if (phase !== 'waiting') showGameScreen();
 });
 
@@ -87,18 +94,48 @@ socket.on('game_state', (state) => {
   mySocketId = socket.id;
   showGameScreen();
   renderGame(state);
+  updateStats(state);
 });
 
-socket.on('error', ({ message }) => {
-  alert(message);
-});
+socket.on('error', ({ message }) => alert(message));
 
 // ===== 界面切换 =====
 function showGameScreen() {
   document.getElementById('lobby-screen').style.display = 'none';
   const gs = document.getElementById('game-screen');
   gs.style.display = 'flex';
-  gs.style.flexDirection = 'column';
+}
+
+// ===== 战绩汇总 =====
+function updateStats(state) {
+  // 初始化新玩家
+  for (const p of state.players) {
+    if (!statsMap[p.id]) {
+      statsMap[p.id] = { name: p.name, net: 0, startChips: p.chips };
+    }
+  }
+  // 如果有获胜者，更新净盈亏
+  if (state.lastWinners && state.phase === 'showdown') {
+    for (const p of state.players) {
+      if (statsMap[p.id]) {
+        statsMap[p.id].chips = p.chips;
+      }
+    }
+  }
+  // 实时显示当前筹码 vs 初始筹码
+  const rows = state.players.map(p => {
+    if (!statsMap[p.id]) statsMap[p.id] = { name: p.name, startChips: p.chips };
+    const start = statsMap[p.id].startChips || p.chips;
+    const net = p.chips - start;
+    const color = net > 0 ? '#2ecc71' : net < 0 ? '#e74c3c' : '#aaa';
+    const sign = net > 0 ? '+' : '';
+    return `<div class="stats-row">
+      <span class="stats-name">${p.name}</span>
+      <span class="stats-chips">💰${p.chips}</span>
+      <span class="stats-net" style="color:${color}">${sign}${net}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('statsTable').innerHTML = rows;
 }
 
 // ===== 渲染游戏 =====
@@ -111,12 +148,11 @@ function renderGame(state) {
   const phaseNames = { preflop:'翻牌前', flop:'翻牌', turn:'转牌', river:'河牌', showdown:'摊牌', waiting:'等待' };
   document.getElementById('phaseLabel').textContent = phaseNames[state.phase] || '';
 
-  // 游戏总时间
   updateGameTimer(state.remainingTime !== undefined ? state.remainingTime : null);
 
   renderSeats(state);
 
-  const sid = mySocketId || socket.id;
+  const sid = socket.id;
   const me = state.players.find(p => p.id === sid);
   const myCardsEl = document.getElementById('myCards');
   if (me && me.holeCards) {
@@ -125,14 +161,19 @@ function renderGame(state) {
     myCardsEl.innerHTML = '';
   }
 
+  // 带入筹码按钮：筹码为0且游戏在进行中时显示
+  const rebuyBtn = document.getElementById('rebuyBtn');
+  if (me && me.chips === 0 && state.phase !== 'waiting') {
+    rebuyBtn.style.display = 'block';
+  } else {
+    rebuyBtn.style.display = 'none';
+  }
+
   const actionPanel = document.getElementById('actionPanel');
   if (state.currentPlayerId === sid && state.phase !== 'showdown' && state.phase !== 'waiting') {
     actionPanel.style.display = 'flex';
     updateActionButtons(state, me);
-    // 思考倒计时
-    if (state.thinkTimeRemaining > 0) {
-      startThinkTimer(state.thinkTimeRemaining);
-    }
+    if (state.thinkTimeRemaining > 0) startThinkTimer(state.thinkTimeRemaining);
   } else {
     actionPanel.style.display = 'none';
     clearInterval(thinkTimerInterval);
@@ -228,33 +269,28 @@ document.getElementById('allinBtn').addEventListener('click', () => socket.emit(
 
 // ===== 计时器 =====
 let thinkTimerInterval = null;
-let gameTimerInterval = null;
 
-function startThinkTimer(seconds) {
+function startThinkTimer(ms) {
   clearInterval(thinkTimerInterval);
   const el = document.getElementById('thinkTimer');
-  if (!el || seconds <= 0) { if (el) el.textContent = ''; return; }
-  let remaining = Math.ceil(seconds / 1000);
+  if (!el || ms <= 0) { if (el) el.textContent = ''; return; }
+  let remaining = Math.ceil(ms / 1000);
   el.textContent = `⏱ ${remaining}s`;
   thinkTimerInterval = setInterval(() => {
     remaining--;
-    if (remaining <= 0) {
-      clearInterval(thinkTimerInterval);
-      el.textContent = '';
-    } else {
-      el.textContent = `⏱ ${remaining}s`;
-    }
+    if (remaining <= 0) { clearInterval(thinkTimerInterval); el.textContent = ''; }
+    else el.textContent = `⏱ ${remaining}s`;
   }, 1000);
 }
 
 function updateGameTimer(remainingMs) {
   const el = document.getElementById('gameTimer');
   if (!el) return;
-  if (remainingMs === null) { el.style.display = 'none'; return; }
+  if (remainingMs === null || remainingMs === undefined) { el.style.display = 'none'; return; }
   el.style.display = 'block';
   const mins = Math.floor(remainingMs / 60000);
   const secs = Math.floor((remainingMs % 60000) / 1000);
-  el.textContent = `剩余时间 ${mins}:${secs.toString().padStart(2, '0')}`;
+  el.textContent = `剩余 ${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // ===== 结果显示 =====
@@ -263,14 +299,11 @@ function showResult(winners) {
   document.getElementById('resultTitle').textContent = winners.length > 1 ? '平局！' : `${winners[0].name} 获胜！`;
   document.getElementById('resultDetail').innerHTML = winners.map(w => {
     const cards = w.holeCards ? w.holeCards.map(c => cardHTML(c, false, true)).join('') : '';
-    return `<div class="winner-item">${w.name} +${w.amount} <span class="hand">${w.handRank}</span><div style="display:flex;gap:4px;justify-content:center;margin-top:4px">${cards}</div></div>`;
+    return `<div class="winner-item">${w.name} +${w.amount} <span class="hand">${w.handRank}</span>
+      <div style="display:flex;gap:4px;justify-content:center;margin-top:4px">${cards}</div></div>`;
   }).join('');
   overlay.style.display = 'flex';
-
-  // 3秒后自动隐藏结果
-  setTimeout(() => {
-    overlay.style.display = 'none';
-  }, 3000);
+  setTimeout(() => { overlay.style.display = 'none'; }, 3000);
 }
 
 // ===== 牌面渲染 =====

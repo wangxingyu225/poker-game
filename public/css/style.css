@@ -395,7 +395,58 @@ body {
 .result-box h2 { color: #f0c040; margin-bottom: 16px; font-size: 1.6rem; }
 .result-box .winner-item { margin: 8px 0; font-size: 1rem; }
 .result-box .winner-item .hand { color: #aaa; font-size: 0.85rem; }
-.game-timer {
+/* ===== GAME LAYOUT ===== */
+#game-screen {
+  flex-direction: row !important;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.game-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ===== STATS PANEL ===== */
+.stats-panel {
+  width: 180px;
+  background: #0f1923;
+  border-left: 1px solid #1a2a3a;
+  padding: 12px 10px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.stats-title {
+  font-size: 0.8rem;
+  color: #f0c040;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.stats-row {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: 1px solid #1a2a3a;
+  font-size: 0.78rem;
+}
+
+.stats-name { color: #ccc; }
+.stats-chips { color: #f0c040; }
+.stats-net { font-weight: bold; }
+
+/* ===== REBUY BUTTON ===== */
+.btn-rebuy {
+  background: #16a085;
+  color: white;
+  margin-left: auto;
+}
   color: #f0c040;
   font-size: 0.85rem;
   margin-top: 6px;

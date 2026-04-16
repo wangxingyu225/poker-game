@@ -40,6 +40,15 @@ class Game {
     this.players = this.players.filter(p => p.id !== id);
   }
 
+  rebuy(id, amount) {
+    const player = this.players.find(p => p.id === id);
+    if (!player) return false;
+    player.chips += amount;
+    player.allIn = false;
+    this.actionLog.push(`${player.name} 带入 ${amount} 筹码`);
+    return true;
+  }
+
   canStart() {
     return this.players.length >= 2 && this.phase === 'waiting';
   }

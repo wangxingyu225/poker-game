@@ -103,6 +103,15 @@ io.on('connection', (socket) => {
     if (game.phase === 'showdown') autoNextRound(info.roomId);
   });
 
+  socket.on('rebuy', ({ amount }) => {
+    const info = socketMap[socket.id];
+    if (!info) return;
+    const game = rooms[info.roomId];
+    if (!game) return;
+    const ok = game.rebuy(socket.id, Math.max(0, parseInt(amount) || 0));
+    if (ok) broadcastGameState(info.roomId);
+  });
+
   socket.on('rejoin_room', ({ roomId, name }) => {
     const game = rooms[roomId];
     if (!game) return;
