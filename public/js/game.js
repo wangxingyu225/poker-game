@@ -31,7 +31,33 @@ document.getElementById('nextRoundBtn').addEventListener('click', () => {
 socket.on('connect', () => {
   mySocketId = socket.id;
   const name = sessionStorage.getItem('playerName') || '玩家';
-  socket.emit('rejoin_room', { roomId, name });
+  const pending = sessionStorage.getItem('pendingAction');
+
+  if (pending) {
+    sessionStorage.removeItem('pendingAction');
+    const p = JSON.parse(pending);
+    if (p.action === 'create') {
+      socket.emit('create_room', { name: p.name, smallBlind: p.smallBlind, bigBlind: p.bigBlind, startingChips: p.startingChips });
+    } else if (p.action === 'join') {
+      socket.emit('join_room', { name: p.name, roomId: p.roomId });
+    }
+  } else if (roomId) {
+    socket.emit('rejoin_room', { roomId, name });
+  }
+});
+
+socket.on('room_created', ({ roomId: id }) => {
+  sessionStorage.setItem('roomId', id);
+  sessionStorage.setItem('isHost', 'true');
+  isHost = true;
+  document.getElementById('roomIdDisplay').textContent = id;
+  document.getElementById('startBtn').style.display = 'block';
+  document.getElementById('waitMsg').style.display = 'none';
+});
+
+socket.on('room_joined', ({ roomId: id }) => {
+  sessionStorage.setItem('roomId', id);
+  document.getElementById('roomIdDisplay').textContent = id;
 });
 
 socket.on('room_update', ({ players, phase }) => {
