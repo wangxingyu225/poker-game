@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>德州扑克</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="game-page">
+  <div id="lobby-screen" class="screen">
+    <div class="room-info">
+      <span>房间号: <strong id="roomIdDisplay"></strong></span>
+      <button id="copyRoomBtn" class="btn-small">复制</button>
+    </div>
+    <div id="playerList" class="player-list"></div>
+    <button id="startBtn" class="btn-primary" style="display:none">开始游戏</button>
+    <p id="waitMsg" class="wait-msg">等待房主开始游戏...</p>
+  </div>
+
+  <div id="game-screen" class="screen" style="display:none">
+    <div class="table-wrap">
+      <div class="poker-table">
+        <!-- 座位 0-8 由 JS 动态生成 -->
+        <div id="seats"></div>
+        <div class="table-center">
+          <div id="communityCards" class="community-cards"></div>
+          <div class="pot-display">底池: <span id="potAmount">0</span></div>
+          <div id="phaseLabel" class="phase-label"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-panel">
+      <div class="my-cards" id="myCards"></div>
+      <div class="action-panel" id="actionPanel" style="display:none">
+        <button id="foldBtn" class="btn-action btn-fold">弃牌</button>
+        <button id="checkBtn" class="btn-action btn-check">过牌</button>
+        <button id="callBtn" class="btn-action btn-call">跟注</button>
+        <div class="raise-wrap">
+          <button id="raiseBtn" class="btn-action btn-raise">加注</button>
+          <input type="range" id="raiseSlider" min="0" max="1000" step="10" value="0">
+          <span id="raiseAmount">0</span>
+        </div>
+        <button id="allinBtn" class="btn-action btn-allin">All-in</button>
+      </div>
+    </div>
+
+    <div class="log-panel">
+      <div id="actionLog"></div>
+    </div>
+
+    <div id="resultOverlay" class="result-overlay" style="display:none">
+      <div class="result-box">
+        <h2 id="resultTitle"></h2>
+        <div id="resultDetail"></div>
+        <button id="nextRoundBtn" class="btn-primary" style="display:none">下一局</button>
+        <p id="waitNextMsg" style="display:none">等待房主开始下一局...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
