@@ -38,7 +38,7 @@ socket.on('connect', () => {
     sessionStorage.removeItem('pendingAction');
     const p = JSON.parse(pendingRaw);
     if (p.action === 'create') {
-      socket.emit('create_room', { name: p.name, smallBlind: p.smallBlind, bigBlind: p.bigBlind, startingChips: p.startingChips });
+      socket.emit('create_room', { name: p.name, smallBlind: p.smallBlind, bigBlind: p.bigBlind, startingChips: p.startingChips, totalGameTime: p.totalGameTime, thinkTime: p.thinkTime });
     } else if (p.action === 'join') {
       socket.emit('join_room', { name: p.name, roomId: p.roomId });
     }
@@ -111,6 +111,9 @@ function renderGame(state) {
   const phaseNames = { preflop:'翻牌前', flop:'翻牌', turn:'转牌', river:'河牌', showdown:'摊牌', waiting:'等待' };
   document.getElementById('phaseLabel').textContent = phaseNames[state.phase] || '';
 
+  // 游戏总时间
+  updateGameTimer(state.remainingTime !== undefined ? state.remainingTime : null);
+
   renderSeats(state);
 
   const sid = mySocketId || socket.id;
@@ -126,8 +129,15 @@ function renderGame(state) {
   if (state.currentPlayerId === sid && state.phase !== 'showdown' && state.phase !== 'waiting') {
     actionPanel.style.display = 'flex';
     updateActionButtons(state, me);
+    // 思考倒计时
+    if (state.thinkTimeRemaining > 0) {
+      startThinkTimer(state.thinkTimeRemaining);
+    }
   } else {
     actionPanel.style.display = 'none';
+    clearInterval(thinkTimerInterval);
+    const el = document.getElementById('thinkTimer');
+    if (el) el.textContent = '';
   }
 
   const log = document.getElementById('actionLog');
@@ -216,17 +226,51 @@ document.getElementById('raiseBtn').addEventListener('click', () => {
 });
 document.getElementById('allinBtn').addEventListener('click', () => socket.emit('player_action', { action: 'allin' }));
 
+// ===== 计时器 =====
+let thinkTimerInterval = null;
+let gameTimerInterval = null;
+
+function startThinkTimer(seconds) {
+  clearInterval(thinkTimerInterval);
+  const el = document.getElementById('thinkTimer');
+  if (!el || seconds <= 0) { if (el) el.textContent = ''; return; }
+  let remaining = Math.ceil(seconds / 1000);
+  el.textContent = `⏱ ${remaining}s`;
+  thinkTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(thinkTimerInterval);
+      el.textContent = '';
+    } else {
+      el.textContent = `⏱ ${remaining}s`;
+    }
+  }, 1000);
+}
+
+function updateGameTimer(remainingMs) {
+  const el = document.getElementById('gameTimer');
+  if (!el) return;
+  if (remainingMs === null) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const mins = Math.floor(remainingMs / 60000);
+  const secs = Math.floor((remainingMs % 60000) / 1000);
+  el.textContent = `剩余时间 ${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 // ===== 结果显示 =====
 function showResult(winners) {
   const overlay = document.getElementById('resultOverlay');
   document.getElementById('resultTitle').textContent = winners.length > 1 ? '平局！' : `${winners[0].name} 获胜！`;
-  document.getElementById('resultDetail').innerHTML = winners.map(w =>
-    `<div class="winner-item">+${w.amount} 筹码 <span class="hand">${w.handRank}</span></div>`
-  ).join('');
-
-  document.getElementById('nextRoundBtn').style.display = isHost ? 'block' : 'none';
-  document.getElementById('waitNextMsg').style.display = isHost ? 'none' : 'block';
+  document.getElementById('resultDetail').innerHTML = winners.map(w => {
+    const cards = w.holeCards ? w.holeCards.map(c => cardHTML(c, false, true)).join('') : '';
+    return `<div class="winner-item">${w.name} +${w.amount} <span class="hand">${w.handRank}</span><div style="display:flex;gap:4px;justify-content:center;margin-top:4px">${cards}</div></div>`;
+  }).join('');
   overlay.style.display = 'flex';
+
+  // 3秒后自动隐藏结果
+  setTimeout(() => {
+    overlay.style.display = 'none';
+  }, 3000);
 }
 
 // ===== 牌面渲染 =====

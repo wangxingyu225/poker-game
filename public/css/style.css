@@ -395,4 +395,16 @@ body {
 .result-box h2 { color: #f0c040; margin-bottom: 16px; font-size: 1.6rem; }
 .result-box .winner-item { margin: 8px 0; font-size: 1rem; }
 .result-box .winner-item .hand { color: #aaa; font-size: 0.85rem; }
-.result-box button { margin-top: 20px; max-width: 200px; }
+.game-timer {
+  color: #f0c040;
+  font-size: 0.85rem;
+  margin-top: 6px;
+}
+
+.think-timer {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #e74c3c;
+  min-width: 48px;
+  text-align: center;
+}

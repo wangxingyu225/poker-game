@@ -26,6 +26,7 @@
           <div id="communityCards" class="community-cards"></div>
           <div class="pot-display">底池: <span id="potAmount">0</span></div>
           <div id="phaseLabel" class="phase-label"></div>
+          <div id="gameTimer" class="game-timer" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -33,6 +34,7 @@
     <div class="bottom-panel">
       <div class="my-cards" id="myCards"></div>
       <div class="action-panel" id="actionPanel" style="display:none">
+        <div id="thinkTimer" class="think-timer"></div>
         <button id="foldBtn" class="btn-action btn-fold">弃牌</button>
         <button id="checkBtn" class="btn-action btn-check">过牌</button>
         <button id="callBtn" class="btn-action btn-call">跟注</button>
@@ -53,8 +55,7 @@
       <div class="result-box">
         <h2 id="resultTitle"></h2>
         <div id="resultDetail"></div>
-        <button id="nextRoundBtn" class="btn-primary" style="display:none">下一局</button>
-        <p id="waitNextMsg" style="display:none">等待房主开始下一局...</p>
+        <div id="autoNextMsg" class="wait-msg">3秒后自动开始下一局...</div>
       </div>
     </div>
   </div>

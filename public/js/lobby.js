@@ -8,7 +8,9 @@ document.getElementById('createBtn').addEventListener('click', () => {
   const startingChips = parseInt(document.getElementById('startingChips').value) || 1000;
   sessionStorage.setItem('playerName', name);
   sessionStorage.setItem('isHost', 'true');
-  sessionStorage.setItem('pendingAction', JSON.stringify({ action: 'create', name, smallBlind, bigBlind, startingChips }));
+  const totalGameTime = parseInt(document.getElementById('totalGameTime').value) || 0;
+  const thinkTime = parseInt(document.getElementById('thinkTime').value) || 30;
+  sessionStorage.setItem('pendingAction', JSON.stringify({ action: 'create', name, smallBlind, bigBlind, startingChips, totalGameTime, thinkTime }));
   window.location.href = '/game.html';
 });
 

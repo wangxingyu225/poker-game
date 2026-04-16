@@ -12,23 +12,55 @@ const io = new Server(server, {
 
 app.use(express.static('public'));
 
-// 设置 CSP 允许 socket.io 所需的 eval
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; connect-src 'self' ws: wss:;");
   next();
 });
 
-// roomId -> Game
 const rooms = {};
-// socketId -> { roomId, playerName }
 const socketMap = {};
+
+function broadcastRoomUpdate(roomId) {
+  const game = rooms[roomId];
+  if (!game) return;
+  io.to(roomId).emit('room_update', {
+    players: game.players.map(p => ({ id: p.id, name: p.name, chips: p.chips })),
+    phase: game.phase
+  });
+}
+
+function broadcastGameState(roomId) {
+  const game = rooms[roomId];
+  if (!game) return;
+  for (const player of game.players) {
+    io.to(player.id).emit('game_state', game.getState(player.id));
+  }
+}
+
+function autoNextRound(roomId) {
+  const game = rooms[roomId];
+  if (!game || game.phase !== 'showdown') return;
+  // 展示结果 3 秒后自动开始下一局
+  setTimeout(() => {
+    const g = rooms[roomId];
+    if (!g || g.phase !== 'showdown') return;
+    g.lastWinners = null;
+    const started = g.startRound();
+    if (!started) {
+      g.phase = g.players.length < 2 ? 'waiting' : 'gameover';
+    }
+    broadcastGameState(roomId);
+  }, 3000);
+}
 
 io.on('connection', (socket) => {
 
-  socket.on('create_room', ({ name, smallBlind, bigBlind, startingChips }) => {
+  socket.on('create_room', ({ name, smallBlind, bigBlind, startingChips, totalGameTime, thinkTime }) => {
     const roomId = Math.random().toString(36).substr(2, 6).toUpperCase();
-    const game = new Game(roomId, { smallBlind, bigBlind, startingChips });
+    const game = new Game(roomId, { smallBlind, bigBlind, startingChips, totalGameTime, thinkTime });
     rooms[roomId] = game;
+    // 超时自动弃牌后广播
+    game.onTimeout = () => broadcastGameState(roomId);
     game.addPlayer(socket.id, name);
     socketMap[socket.id] = { roomId, name };
     socket.join(roomId);
@@ -68,29 +100,14 @@ io.on('connection', (socket) => {
     const result = game.processAction(socket.id, action, amount);
     if (result && result.error) return socket.emit('error', { message: result.error });
     broadcastGameState(info.roomId);
-  });
-
-  socket.on('next_round', () => {
-    const info = socketMap[socket.id];
-    if (!info) return;
-    const game = rooms[info.roomId];
-    if (!game || game.phase !== 'showdown') return;
-    if (game.players[0].id !== socket.id) return;
-    game.lastWinners = null;
-    const started = game.startRound();
-    if (!started) {
-      game.phase = 'waiting';
-    }
-    broadcastGameState(info.roomId);
+    if (game.phase === 'showdown') autoNextRound(info.roomId);
   });
 
   socket.on('rejoin_room', ({ roomId, name }) => {
     const game = rooms[roomId];
     if (!game) return;
-    // 检查是否已在房间（重连场景）
     const existing = game.players.find(p => p.id === socket.id);
     if (!existing) {
-      // 新连接但 sessionStorage 有 roomId，尝试重新加入（仅 waiting 阶段）
       if (game.phase === 'waiting') {
         game.addPlayer(socket.id, name);
         socketMap[socket.id] = { roomId, name };
@@ -101,8 +118,7 @@ io.on('connection', (socket) => {
       socketMap[socket.id] = { roomId, name };
       socket.join(roomId);
       if (game.phase !== 'waiting') {
-        const state = game.getState(socket.id);
-        socket.emit('game_state', state);
+        socket.emit('game_state', game.getState(socket.id));
       } else {
         broadcastRoomUpdate(roomId);
       }
@@ -125,28 +141,6 @@ io.on('connection', (socket) => {
     delete socketMap[socket.id];
   });
 });
-
-function broadcastRoomUpdate(roomId) {
-  const game = rooms[roomId];
-  if (!game) return;
-  io.to(roomId).emit('room_update', {
-    players: game.players.map(p => ({ id: p.id, name: p.name, chips: p.chips })),
-    phase: game.phase
-  });
-}
-
-function broadcastGameState(roomId) {
-  const game = rooms[roomId];
-  if (!game) return;
-  // 给每个玩家发送包含自己手牌的状态
-  for (const player of game.players) {
-    const socketId = player.id;
-    const state = game.getState(socketId);
-    io.to(socketId).emit('game_state', state);
-  }
-  // 给旁观者（如果有）发送不含手牌的状态
-  io.to(roomId).emit('game_state_public', game.getState(null));
-}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
